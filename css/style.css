@@ -1,0 +1,12 @@
+body {
+	margin: 0;
+	background-color: #0e0330;
+	color: #000;
+	font-family: Monospace;
+	font-size: 13px;
+	line-height: 24px;
+}
+
+canvas {
+	display: block;
+}
