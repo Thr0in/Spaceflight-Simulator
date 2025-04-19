@@ -80,11 +80,14 @@ export class Craft {
         //console.log('Beschleunigung', this.ax, this.ay)
     }
 
-    checkForCollision() {
+    checkForCollision(dt) {
         // Simple collision detection with the parent body
         const parentPosition = this.parentBody.getPosition(); // Get parent position
         const distanceToParent = distance(this.x, this.y, parentPosition.x, parentPosition.y); // Calculate distance to parent body
-        if (distanceToParent < this.parentBody.radius) {
+        const normalX = (this.x - parentPosition.x) / distanceToParent; // Normalized x component of collision
+        const normalY = (this.y - parentPosition.y) / distanceToParent; // Normalized y component of collision
+
+        if (distanceToParent <= this.parentBody.radius) {
             if (Math.sqrt(this.vx ** 2 + this.vy ** 2) > this.maximumImpactVelocity) {
                 if (this.collisionCallback) {
                     this.collisionCallback(); // Call collision callback if defined
@@ -92,8 +95,6 @@ export class Craft {
             } else {
                 this.isLanded = true; // Set landed state to true
             }
-            const normalX = (this.x - parentPosition.x) / distanceToParent; // Normalized x component of collision
-            const normalY = (this.y - parentPosition.y) / distanceToParent; // Normalized y component of collision
             const dotProduct = this.vx * normalX + this.vy * normalY; // Dot product of velocity and normal
 
             // If the dot product is positive, the craft is moving away from the surface
@@ -110,7 +111,14 @@ export class Craft {
             // Apply dampening factor
             this.vx *= dampeningFactor;
             this.vy *= dampeningFactor;
-        }
+
+            // Calculate acceleration dot product
+            const accelerationDotProduct = this.ax * normalX + this.ay * normalY; // Dot product of acceleration and normal
+            //console.log('accelerationDotProduct', accelerationDotProduct);
+            if (accelerationDotProduct > 0) {
+                this.calculateVelocity(dt);
+            }
+        } else this.calculateVelocity(dt); // Calculate velocity if not colliding
     }
 
     calculateVelocity(dt) {
@@ -129,8 +137,8 @@ export class Craft {
         for (let i = 1; i <= Math.ceil(dt * physicsStepsPerSecond); i++) {
             this.calculateNetForce(celestialBodies);
             this.calculateAcceleration();
-            this.checkForCollision();
-            this.calculateVelocity(i / 100); // Update 
+            this.checkForCollision(i / 100);
+            //this.calculateVelocity(i / 100); // Update 
             //console.log(this.vx, this.vy);
             this.calculatePosition(i / 100); // Update position
             //console.log(this.x, this.y);

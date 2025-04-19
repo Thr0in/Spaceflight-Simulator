@@ -216,7 +216,7 @@ window.onload = () => {
         // Constrain the effective scale to be within the defined limits
         // This ensures that the scale does not go below scaleMin or above scaleMax
         if (effectiveScale < scaleMin) {
-            scale = 0;
+            scale = 0.0000001;
             effectiveScale = scaleMin;
         }
         if (effectiveScale > scaleMax) {
