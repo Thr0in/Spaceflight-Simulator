@@ -1,5 +1,5 @@
 import { distance } from "./utils.mjs";
-
+// TODO: Implement correct velocity handling.
 export class Craft {
     constructor(name, mass, parentBody, x, y, vx = 0, vy = 0) {
         this.name = name;
@@ -21,6 +21,9 @@ export class Craft {
         this.netForceY = 0;
 
         this.isLanded = true;
+        this.wasLanded = false;
+        this.dx = null;
+        this.dy = null;
         this.maximumImpactVelocity = 500; // Maximum impact velocity in m/s
         this.collisionCallback = undefined;
     }
@@ -40,6 +43,12 @@ export class Craft {
     setPosition({ x, y }) {
         this.x = x; // Set x position
         this.y = y; // Set y position
+        const parentVelocity = this.parentBody.getOrbitalVelocityVector();
+        this.vx = parentVelocity.vx;
+        this.vy = parentVelocity.vy;
+        this.isLanded = true;
+        this.wasLanded = false;
+        this.updateParentRelativePosition();
     }
 
     getPosition() {
@@ -87,15 +96,19 @@ export class Craft {
         const normalX = (this.x - parentPosition.x) / distanceToParent; // Normalized x component of collision
         const normalY = (this.y - parentPosition.y) / distanceToParent; // Normalized y component of collision
 
+        this.wasLanded = this.isLanded;
+
         if (distanceToParent <= this.parentBody.radius) {
-            if (Math.sqrt(this.vx ** 2 + this.vy ** 2) > this.maximumImpactVelocity) {
+            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
+            const localVelocity = { vx: this.vx - parentVelocity.vx, vy: this.vy - parentVelocity.vy }
+            if (Math.sqrt(localVelocity.vx ** 2 + localVelocity.vy ** 2) > this.maximumImpactVelocity) {
                 if (this.collisionCallback) {
-                    this.collisionCallback(); // Call collision callback if defined
+                    //this.collisionCallback(); // Call collision callback if defined
                 }
             } else {
                 this.isLanded = true; // Set landed state to true
             }
-            const dotProduct = this.vx * normalX + this.vy * normalY; // Dot product of velocity and normal
+            const dotProduct = localVelocity.vx * normalX + localVelocity.vy * normalY; // Dot product of velocity and normal
 
             // If the dot product is positive, the craft is moving away from the surface
             if (dotProduct > 0) {
@@ -103,18 +116,22 @@ export class Craft {
             }
 
             // Reflect velocity vector based on the normal
-            this.vx -= 2 * dotProduct * normalX;
-            this.vy -= 2 * dotProduct * normalY;
+            localVelocity.vx -= 2 * dotProduct * normalX;
+            localVelocity.vy -= 2 * dotProduct * normalY;
 
 
             const dampeningFactor = 0.4; // Reduce velocity after collision
             // Apply dampening factor
-            this.vx *= dampeningFactor;
-            this.vy *= dampeningFactor;
+            localVelocity.vx *= dampeningFactor;
+            localVelocity.vy *= dampeningFactor;
 
             // Calculate acceleration dot product
             const accelerationDotProduct = this.ax * normalX + this.ay * normalY; // Dot product of acceleration and normal
             //console.log('accelerationDotProduct', accelerationDotProduct);
+
+            this.vx = localVelocity.vx + parentVelocity.vx;
+            this.vy = localVelocity.vy + parentVelocity.vy;
+
             if (accelerationDotProduct > 0) {
                 this.calculateVelocity(dt);
             }
@@ -127,10 +144,34 @@ export class Craft {
         this.vy += this.ay * dt; // Update y velocity
     }
 
+    updateParentRelativePosition() {
+        if (!this.wasLanded && this.isLanded) {
+            const parentPosition = this.parentBody.getPosition();
+            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
+            this.dx = this.x - parentPosition.x;
+            this.dy = this.y - parentPosition.y;
+            this.vx -= parentVelocity.vx;
+            this.vy -= parentVelocity.vy;
+        }
+        if (this.wasLanded && !this.isLanded) {
+            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
+            this.vx += parentVelocity.vx;
+            this.vy += parentVelocity.vy;
+            this.dx = null;
+            this.dy = null;
+        }
+    }
+
     calculatePosition(dt) {
         // Calculate position based on velocity and time
-        this.x += this.vx * dt / 1000; // Update x position
-        this.y += this.vy * dt / 1000; // Update y position
+        if (this.isLanded) {
+            const parentPosition = this.parentBody.getPosition();
+            this.x = parentPosition.x + this.dx;
+            this.y = parentPosition.y + this.dy;
+        } else {
+            this.x += this.vx * dt / 1000; // Update x position
+            this.y += this.vy * dt / 1000; // Update y position
+        }
     }
 
     update(dt, celestialBodies, physicsStepsPerSecond = 100) {
@@ -138,6 +179,7 @@ export class Craft {
             this.calculateNetForce(celestialBodies);
             this.calculateAcceleration();
             this.checkForCollision(i / 100);
+            this.updateParentRelativePosition();
             //this.calculateVelocity(i / 100); // Update 
             //console.log(this.vx, this.vy);
             this.calculatePosition(i / 100); // Update position

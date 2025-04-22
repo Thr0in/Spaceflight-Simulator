@@ -1,6 +1,8 @@
 import { distance } from "./utils.mjs";
 
+const G = 6.67430e-11; // gravitational constant in m^3 kg^-1 s^-2
 export class CelestialBody {
+  7
   constructor(name, mass, radius, color = "#000", orbitalRadius = 0, angle = 0, parent = undefined) {
     this.name = name;
     this.mass = mass; // in kg
@@ -8,7 +10,8 @@ export class CelestialBody {
     this.color = color; // Celestial body color
 
     this.orbitalRadius = orbitalRadius; // in km (for planets)
-    this.angle = angle; // angle in radians (for planets)
+    this.initialAngle = angle; // starting angle in radians (for planets)
+    this.currentAngle = angle;
     this.parent = parent; // Parent celestial body (e.g., sun for planets)
     this.children = []; // Array to hold child celestial bodies (e.g., moons for planets)
 
@@ -39,12 +42,11 @@ export class CelestialBody {
   }
 
   getGravitationalForce(otherMass, { x, y }) {
-    const G = 6.67430e-11; // gravitational constant in m^3 kg^-1 s^-2
     this.getPosition(); // Update position based on parent
     const dx = (x - this.x) * 1000; // Convert km to meters
     const dy = (y - this.y) * 1000; // Convert km to meters
     const distance = Math.sqrt(dx * dx + dy * dy); // distance in meters
-    
+
     let force = 0;
     force = (G * this.mass * otherMass) / Math.pow(distance, 2);
     const angle = Math.atan2(dy, dx); // angle in radians
@@ -53,10 +55,38 @@ export class CelestialBody {
     return { fx, fy };
   }
 
+  updatePosition(time) {
+    const parentPosition = this.hasParent() ? this.parent.getPosition(time) : { x: 0, y: 0 };
+    this.currentAngle = this.hasParent() ? (this.initialAngle - (2 * Math.PI * time / this.getOrbitalPeriod())) : this.initialAngle;
+    this.x = parentPosition.x + this.orbitalRadius * Math.cos(this.currentAngle);
+    this.y = parentPosition.y + this.orbitalRadius * Math.sin(this.currentAngle);
+  }
+
   getPosition() {
-    const parentPosition = this.hasParent() ? this.parent.getPosition() : { x: 0, y: 0 };
-    this.x = parentPosition.x + this.orbitalRadius * Math.cos(this.angle);
-    this.y = parentPosition.y + this.orbitalRadius * Math.sin(this.angle);
     return { x: this.x, y: this.y };
+  }
+
+  getOrbitalVelocity() {
+    if (this.hasParent()) {
+      const gm = G * this.parent.mass;
+      return Math.sqrt(gm / (this.orbitalRadius * 1000));
+    } else {
+      return 0;
+    }
+  }
+
+  getOrbitalPeriod() {
+    if (this.hasParent()) {
+      return 2 * Math.PI * (this.orbitalRadius * 1000) / this.getOrbitalVelocity();
+    } else {
+      return Infinity;
+    }
+  }
+
+  getOrbitalVelocityVector() {
+    const v = this.getOrbitalVelocity();
+    const vx = v * Math.sin(this.currentAngle);
+    const vy = v * Math.cos(this.currentAngle);
+    return {vx, vy};
   }
 }

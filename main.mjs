@@ -5,6 +5,7 @@ import { CelestialBody } from "./js/celestialBody.mjs";
 import { Renderer } from "./js/renderer.mjs";
 import { Craft } from "./js/craft.mjs";
 import { Button } from "./js/button.mjs";
+import { Time } from "./js/time.mjs";
 
 window.onload = () => {
     let cnv = document.getElementById("cnv");
@@ -20,7 +21,8 @@ window.onload = () => {
 
     resize();
 
-    const renderer = new Renderer(cnv);
+    const time = new Time();
+    const renderer = new Renderer(cnv, time);
     const craftImage = loadImage("./images/rocket-312767.svg"); // Load craft image
     renderer.setCraftImage(craftImage); // Set craft image in renderer
 
@@ -39,18 +41,20 @@ window.onload = () => {
     const slider = new Slider(sliderX, sliderY, "#fff", sliderWidth, -cnv.height + 2 * sliderY);
 
      // Create time warp buttons
-    const buttonWidth = 60;
+    const buttonWidth = 120;
     const buttons = [];
     for (let i = 0; i < 10; i++) {
-        const button = new Button(10 + i * (buttonWidth + 10), 10, buttonWidth, 35, `x ${2 ** i}`, "#fff", "#000");
+        const warpFactor = (i <= 2) ? 2 ** i : 10 ** (i - 2);
+        const button = new Button(10 + i * (buttonWidth + 10), 10, buttonWidth, 35, `x ${warpFactor}`, "#fff", "#000");
         button.setCallback(() => {
             for (const button of buttons) {
                 button.isPressed = false;
             }
-            renderer.setTimeWarp(2 ** i);
+            time.setWarpFactor(warpFactor);
         });
         buttons.push(button);
     }
+    buttons.at(0).isPressed = true;
 
     const movementController = createMovementController();
 
@@ -167,6 +171,7 @@ window.onload = () => {
     renderer.setScaleDistance(100000); // Set scale for rendering distances
     renderer.setScaleBodies(1000); // Set scale for rendering celestial bodies
 
+    earth.updatePosition(0);
     let positionCraft = earth.getPosition();
     positionCraft.y -= earth.radius + 10; // Start above the Earth
 
@@ -176,8 +181,8 @@ window.onload = () => {
         y: positionCraft.y
     };
 
-    craft.setPosition(positionCraft); // Set initial position of the craft
     craft.setParentBody(earth); // Set Earth as the parent body for the craft
+    craft.setPosition(positionCraft); // Set initial position of the craft
 
     let angle = 0;
     let strength = 0;
@@ -191,6 +196,9 @@ window.onload = () => {
     function draw() {
         ctx.resetTransform();
         ctx.clearRect(0, 0, cnv.width, cnv.height);
+        
+        time.updateTimeStamp();
+        renderer.updateCelestialBodies();
 
         // TODO: Multi touch
 
@@ -206,8 +214,13 @@ window.onload = () => {
         craft.fireThrusters(angle, strength);
 
         let movement = movementController.getMovement();
-        positionView.x -= movement.diffX * renderer.getScale().distance;
-        positionView.y -= movement.diffY * renderer.getScale().distance;
+        // positionView.x -= movement.diffX * renderer.getScale().distance;
+        // positionView.y -= movement.diffY * renderer.getScale().distance;
+        positionView = {
+            x: craft.getPosition().x,
+            y: craft.getPosition().y
+        };
+
 
         scale = slider.getStrength();
         scale /= (movement.scale * 0.1 + 0.9); // Adjust scale based on touch movement
@@ -234,11 +247,10 @@ window.onload = () => {
         renderer.drawOrbits();
         renderer.drawCraftHistory(); // Draw the craft's history
         renderer.drawCraftOrbit(craft); // Draw the craft's orbit
-        renderer.drawCraft(craft); // Draw the craft
+        renderer.drawCraft(craft, false); // Draw the craft
         renderer.logAll(); // Log all objects
-
         //console.log(craft.getPosition(), earth.getPosition());
-
+        
         //console.log("scale: ", scale, "effectiveScale: ", effectiveScale);
 
         // Draw UI elements

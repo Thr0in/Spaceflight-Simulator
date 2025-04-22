@@ -1,5 +1,8 @@
+import { Time } from "./time.mjs";
+import { CelestialBody } from "./celestialBody.mjs";
+
 export class Renderer {
-    constructor(cnvs) {
+    constructor(cnvs, time) {
         this.cnvs = cnvs; // Canvas element for rendering
         this.ctx = cnvs.getContext("2d"); // 2D rendering context
         this.celestialBodies = []; // Array to hold celestial bodies
@@ -18,6 +21,13 @@ export class Renderer {
 
         this.isDead = false;
         this.craftAngle = 0;
+        this.time = time;
+    }
+
+    updateCelestialBodies() {
+        for (const body of this.celestialBodies) {
+            body.updatePosition(this.time.getTime());
+        }
     }
 
     drawCelestialBodies() {
@@ -70,10 +80,12 @@ export class Renderer {
         this.ctx.restore();
     }
 
-    drawCraft(craft) {
-        const currentTime = Date.now(); // Get current time
+    drawCraft(craft, useImage = true) {
+        const currentTime = this.time.getTime(); // Get current time
         let dt = currentTime - this.lastTime; // Calculate time difference
-        dt = 1 / 6;
+        //console.log(dt);
+        dt /= 1000;
+        //console.log(1/6, dt);
         this.lastTime = currentTime; // Update last time
 
         this.ctx.save();
@@ -83,7 +95,7 @@ export class Renderer {
         this.ctx.beginPath();
 
         if (!this.isDead) {
-            craft.update(dt * this.timeWarp, this.celestialBodies); // Update craft position based on time difference and time warp 
+            craft.update(dt, this.celestialBodies); // Update craft position based on time difference and time warp 
         }
         let { x, y } = craft.getPosition();
 
@@ -100,7 +112,7 @@ export class Renderer {
         x /= this.scaleDistance; // Adjust position for scale
         y /= this.scaleDistance;
 
-        if (this.craftImage) {
+        if (this.craftImage && useImage) {
             try {
                 this.ctx.save();
                 this.ctx.resetTransform(); // Reset transformation matrix
@@ -144,7 +156,7 @@ export class Renderer {
 
         const tmpCraft = Object.create(craft); // Create a temporary craft object for simulation
         let futureColision = false;
-        tmpCraft.collisionCallback = () => {futureColision = true;}
+        tmpCraft.collisionCallback = () => { futureColision = true; }
         for (let i = 0; i < 700; i++) {
             tmpCraft.fireThrusters(0, 0);
             tmpCraft.update(i + 1, this.celestialBodies, 0.1); // Update craft position based on time difference
@@ -189,6 +201,7 @@ export class Renderer {
 
     onCollision() {
         this.isDead = true; // Set isDead flag to true on collision
+        this.time.setWarpFactor(0);
     }
 
     setCraftImage(craftImage) {
