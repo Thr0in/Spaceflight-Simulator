@@ -1,20 +1,29 @@
-import { distance } from "./utils.mjs";
-// TODO: Implement correct velocity handling.
+import { getDistance } from "./utils.mjs";
+
 export class Craft {
-    constructor(name, mass, parentBody, x, y, vx = 0, vy = 0) {
+    /**
+     * Represents a spacecraft.
+     * @param {string} name - The name of the craft.
+     * @param {number} mass - The mass of the craft in kilograms.
+     * @param {object} parentBody - The celestial body the craft orbits.
+     * @param {number} x - Initial x position relative to the parent body.
+     * @param {number} y - Initial y position relative to the parent body.
+     */
+    constructor(name, mass, parentBody, x, y) {
         this.name = name;
         this.mass = mass;
-        this.maxThrust = 15000; // Maximum thrust in Newtons
-        this.parentBody = parentBody; // The celestial body it is 
+        this.maximumThrust = 5000;
+        this.maximumNormedThrust = null;
+        this.parentBody = parentBody;
 
-        this.x = x; // Initial x position
-        this.y = y; // Initial y 
-        this.angle = 0; // Initial angle in radians
+        this.x = x;
+        this.y = y;
+        this.angle = 0;
 
-        this.vx = vx; // Initial x velocity
-        this.vy = vy; // Initial y velocity
-        this.ax = 0; // Initial x acceleration
-        this.ay = 0; // Initial y acceleration
+        this.vx = 0;
+        this.vy = 0;
+        this.ax = 0;
+        this.ay = 0;
         this.thrustX = 0;
         this.thrustY = 0;
         this.netForceX = 0;
@@ -22,169 +31,264 @@ export class Craft {
 
         this.isLanded = true;
         this.wasLanded = false;
-        this.dx = null;
-        this.dy = null;
-        this.maximumImpactVelocity = 500; // Maximum impact velocity in m/s
+        this.isCrashed = false;
+        this.impactVelocity = 0;
+        this.maximumImpactVelocity = 500;
         this.collisionCallback = undefined;
+
+        this.landedBodies = [];
+
+        this.updateMaximumNormedThrust();
     }
 
+    /**
+     * Fires the thrusters to apply thrust in a specific direction.
+     * @param {number} angle - The angle of thrust in radians.
+     * @param {number} strength - The strength of the thrust (0 to 1).
+     */
     fireThrusters(angle, strength) {
-        // Calculate thrust based on angle and strength
-        this.angle = angle; // Update angle
-        this.thrustX = this.maxThrust * strength * Math.cos(angle);
-        this.thrustY = this.maxThrust * strength * Math.sin(angle);
-        //console.log('schub', this.thrustX, this.thrustY);
+        this.angle = angle;
+        this.thrustX = this.maximumNormedThrust * strength * Math.cos(angle);
+        this.thrustY = this.maximumNormedThrust * strength * Math.sin(angle);
     }
 
+    /**
+     * Sets the parent celestial body of the craft.
+     * @param {object} parentBody - The new parent celestial body.
+     */
     setParentBody(parentBody) {
-        this.parentBody = parentBody; // Set the parent celestial body
+        this.parentBody = parentBody;
     }
 
+    /**
+     * Gets the parent celestial body of the craft.
+     * @returns {object} The parent celestial body.
+     */
+    getParent() {
+        return this.parentBody;
+    }
+
+    /**
+     * Updates the maximum normalized thrust based on the surface gravity of the parent body.
+     */
+    updateMaximumNormedThrust() {
+        this.maximumNormedThrust = this.parentBody.getSurfaceGravity() * this.maximumThrust;
+    }
+
+    /**
+     * Sets the position of the craft.
+     * @param {object} position - The new position with x and y coordinates.
+     */
     setPosition({ x, y }) {
-        this.x = x; // Set x position
-        this.y = y; // Set y position
-        const parentVelocity = this.parentBody.getOrbitalVelocityVector();
-        this.vx = parentVelocity.vx;
-        this.vy = parentVelocity.vy;
+        this.x = x;
+        this.y = y;
         this.isLanded = true;
         this.wasLanded = false;
-        this.updateParentRelativePosition();
     }
 
+    /**
+     * Gets the current position of the craft relative to the parent body.
+     * @returns {object} The position with x and y coordinates.
+     */
     getPosition() {
-        // Calculate stuff
         return { x: this.x, y: this.y };
     }
 
-    calculateNetForce(celestialBodies) {
-        // Calculate net force acting on the craft
-        //const gravitationalForce = this.parentBody.getGravitationalForce(this.mass, this.getPosition()); // Gravitational force in Newtons
-        const gravitationalForceSum = { fx: 0, fy: 0 };
-        for (const body of celestialBodies) {
-            const gravitationalForce = body.getGravitationalForce(this.mass, this.getPosition()); // Gravitational force in Newtons
-            gravitationalForceSum.fx += gravitationalForce.fx;
-            gravitationalForceSum.fy += gravitationalForce.fy;
-        }
-        //console.log('G-Force', gravitationalForce);
-        this.netForceX = gravitationalForceSum.fx + this.thrustX;
-        this.netForceY = gravitationalForceSum.fy + this.thrustY;
-        //console.log('Force', this.netForceX, this.netForceY);
+    /**
+     * Gets the absolute position of the craft in the simulation.
+     * @returns {object} The absolute position with x and y coordinates.
+     */
+    getAbsolutePosition() {
+        const parentPosition = this.parentBody.getPosition();
+        const localPosition = this.getPosition();
+        return {
+            x: parentPosition.x + localPosition.x,
+            y: parentPosition.y + localPosition.y
+        };
     }
 
-    updateParentBody(celestialBodies) {
-        let distanceToParent = distance(this.x, this.y, this.parentBody.x, this.parentBody.y);
-        for (const body of celestialBodies) {
-            const bodyPosition = body.getPosition();
-            const distanceToBody = distance(this.x, this.y, bodyPosition.x, bodyPosition.y);
-            if (distanceToParent > distanceToBody) {
-                distanceToParent = distanceToBody;
-                this.setParentBody(body); // Update parent body if closer celestial body is found
+    /**
+     * Calculates the surface velocity of the craft.
+     * @returns {number} The surface velocity in m/s.
+     */
+    getSurfaceVelocity() {
+        return Math.sqrt(this.vx ** 2 + this.vy ** 2);
+    }
+
+    /**
+     * Calculates the vertical velocity of the craft relative to the parent body.
+     * @returns {number} The vertical velocity in m/s.
+     */
+    getVerticalVelocity() {
+        const normalVector = this.getNormalVector();
+        return this.vx * normalVector.x + this.vy * normalVector.y;
+    }
+
+    /**
+     * Calculates the altitude of the craft above the parent body's surface.
+     * @returns {number} The altitude in meters.
+     */
+    getAltitude() {
+        return getDistance(this.x, this.y, 0, 0) - this.parentBody.radius;
+    }
+
+    /**
+     * Calculates the normal vector from the craft to the parent body.
+     * @returns {object} The normal vector with x and y components.
+     */
+    getNormalVector() {
+        const distanceToParent = getDistance(this.x, this.y, 0, 0);
+        return { x: this.x / distanceToParent, y: this.y / distanceToParent };
+    }
+
+    /**
+     * Calculates the net force acting on the craft, including gravitational and thrust forces.
+     */
+    calculateNetForce() {
+        const gravitationalForce = this.parentBody.getGravitationalForce(this.mass, this.getPosition());
+        this.netForceX = gravitationalForce.fx + this.thrustX;
+        this.netForceY = gravitationalForce.fy + this.thrustY;
+    }
+
+    /**
+     * Updates the parent celestial body of the craft based on its position.
+     */
+    updateParentBody() {
+        const distanceToParent = getDistance(this.x, this.y, 0, 0);
+        if (distanceToParent > this.parentBody.sphereOfInfluence) {
+            const parentLocalPosition = this.parentBody.getLocalPosition();
+            this.x += parentLocalPosition.x;
+            this.y += parentLocalPosition.y;
+            this.setParentBody(this.parentBody.getParent());
+        }
+        if (this.parentBody.hasChildren()) {
+            for (const child of this.parentBody.getChildren()) {
+                const childLocalPosition = child.getLocalPosition();
+                const distanceToChild = getDistance(this.x, this.y, childLocalPosition.x, childLocalPosition.y);
+
+                if (distanceToChild < child.sphereOfInfluence) {
+                    this.x -= childLocalPosition.x;
+                    this.y -= childLocalPosition.y;
+                    this.setParentBody(child);
+                }
             }
         }
+        this.updateMaximumNormedThrust();
     }
 
+    /**
+     * Calculates the acceleration of the craft based on the net force and mass.
+     */
     calculateAcceleration() {
-        this.ax = this.netForceX / this.mass; // Acceleration in x direction
-        this.ay = this.netForceY / this.mass; // Acceleration in y direction
-        //console.log('Beschleunigung', this.ax, this.ay)
+        this.ax = this.netForceX / this.mass;
+        this.ay = this.netForceY / this.mass;
     }
 
+    /**
+     * Checks for collisions with the parent body and handles the collision response.
+     * @param {number} dt - The time step in seconds.
+     */
     checkForCollision(dt) {
-        // Simple collision detection with the parent body
-        const parentPosition = this.parentBody.getPosition(); // Get parent position
-        const distanceToParent = distance(this.x, this.y, parentPosition.x, parentPosition.y); // Calculate distance to parent body
-        const normalX = (this.x - parentPosition.x) / distanceToParent; // Normalized x component of collision
-        const normalY = (this.y - parentPosition.y) / distanceToParent; // Normalized y component of collision
+        const distanceToParent = getDistance(this.x, this.y, 0, 0);
+        const normalVector = this.getNormalVector();
 
         this.wasLanded = this.isLanded;
 
-        if (distanceToParent <= this.parentBody.radius) {
-            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
-            const localVelocity = { vx: this.vx - parentVelocity.vx, vy: this.vy - parentVelocity.vy }
-            if (Math.sqrt(localVelocity.vx ** 2 + localVelocity.vy ** 2) > this.maximumImpactVelocity) {
-                if (this.collisionCallback) {
-                    //this.collisionCallback(); // Call collision callback if defined
-                }
-            } else {
-                this.isLanded = true; // Set landed state to true
-            }
-            const dotProduct = localVelocity.vx * normalX + localVelocity.vy * normalY; // Dot product of velocity and normal
-
-            // If the dot product is positive, the craft is moving away from the surface
-            if (dotProduct > 0) {
-                this.isLanded = false;
-            }
-
-            // Reflect velocity vector based on the normal
-            localVelocity.vx -= 2 * dotProduct * normalX;
-            localVelocity.vy -= 2 * dotProduct * normalY;
-
-
-            const dampeningFactor = 0.4; // Reduce velocity after collision
-            // Apply dampening factor
-            localVelocity.vx *= dampeningFactor;
-            localVelocity.vy *= dampeningFactor;
-
-            // Calculate acceleration dot product
-            const accelerationDotProduct = this.ax * normalX + this.ay * normalY; // Dot product of acceleration and normal
-            //console.log('accelerationDotProduct', accelerationDotProduct);
-
-            this.vx = localVelocity.vx + parentVelocity.vx;
-            this.vy = localVelocity.vy + parentVelocity.vy;
-
-            if (accelerationDotProduct > 0) {
-                this.calculateVelocity(dt);
-            }
-        } else this.calculateVelocity(dt); // Calculate velocity if not colliding
-    }
-
-    calculateVelocity(dt) {
-        // Calculate velocity based on thrust and time
-        this.vx += this.ax * dt; // Update x velocity
-        this.vy += this.ay * dt; // Update y velocity
-    }
-
-    updateParentRelativePosition() {
-        if (!this.wasLanded && this.isLanded) {
-            const parentPosition = this.parentBody.getPosition();
-            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
-            this.dx = this.x - parentPosition.x;
-            this.dy = this.y - parentPosition.y;
-            this.vx -= parentVelocity.vx;
-            this.vy -= parentVelocity.vy;
+        if (distanceToParent > this.parentBody.radius) {
+            this.calculateVelocity(dt);
+            return;
         }
-        if (this.wasLanded && !this.isLanded) {
-            const parentVelocity = this.parentBody.getOrbitalVelocityVector();
-            this.vx += parentVelocity.vx;
-            this.vy += parentVelocity.vy;
-            this.dx = null;
-            this.dy = null;
-        }
-    }
 
-    calculatePosition(dt) {
-        // Calculate position based on velocity and time
-        if (this.isLanded) {
-            const parentPosition = this.parentBody.getPosition();
-            this.x = parentPosition.x + this.dx;
-            this.y = parentPosition.y + this.dy;
+        const velocityMagnitude = this.getSurfaceVelocity();
+
+        if (velocityMagnitude > this.maximumImpactVelocity) {
+            this.handleCrash(velocityMagnitude);
         } else {
-            this.x += this.vx * dt / 1000; // Update x position
-            this.y += this.vy * dt / 1000; // Update y position
+            this.handleLanding();
+        }
+
+        this.resolveCollision(normalVector, dt);
+    }
+
+    /**
+     * Handles the crash scenario when the craft exceeds the maximum impact velocity.
+     * @param {number} velocityMagnitude - The magnitude of the craft's velocity.
+     */
+    handleCrash(velocityMagnitude) {
+        if (this.collisionCallback) {
+            this.isCrashed = true;
+            this.impactVelocity = velocityMagnitude;
+            this.collisionCallback();
         }
     }
 
-    update(dt, celestialBodies, physicsStepsPerSecond = 100) {
-        for (let i = 1; i <= Math.ceil(dt * physicsStepsPerSecond); i++) {
-            this.calculateNetForce(celestialBodies);
-            this.calculateAcceleration();
-            this.checkForCollision(i / 100);
-            this.updateParentRelativePosition();
-            //this.calculateVelocity(i / 100); // Update 
-            //console.log(this.vx, this.vy);
-            this.calculatePosition(i / 100); // Update position
-            //console.log(this.x, this.y);
+    /**
+     * Handles the landing scenario when the craft safely lands on the parent body.
+     */
+    handleLanding() {
+        this.isLanded = true;
+
+        if (!this.wasLanded && !this.landedBodies.includes(this.parentBody.name)) {
+            this.landedBodies.push(this.parentBody.name);
         }
-        this.updateParentBody(celestialBodies)
+    }
+
+    /**
+     * Resolves the collision by adjusting the craft's velocity and applying dampening.
+     * @param {object} normalVector - The normal vector from the craft to the parent body.
+     * @param {number} dt - The time step in seconds.
+     */
+    resolveCollision(normalVector, dt) {
+        const dotProduct = this.vx * normalVector.x + this.vy * normalVector.y;
+
+        if (dotProduct > 0) {
+            this.isLanded = false;
+        }
+
+        this.vx -= 2 * dotProduct * normalVector.x;
+        this.vy -= 2 * dotProduct * normalVector.y;
+
+        const dampeningFactor = 0.4;
+        this.vx *= dampeningFactor;
+        this.vy *= dampeningFactor;
+
+        const accelerationDotProduct = this.ax * normalVector.x + this.ay * normalVector.y;
+        if (accelerationDotProduct > 0) {
+            this.calculateVelocity(dt);
+        }
+    }
+
+    /**
+     * Updates the velocity of the craft based on acceleration and time.
+     * @param {number} dt - The time step in seconds.
+     */
+    calculateVelocity(dt) {
+        this.vx += this.ax * dt;
+        this.vy += this.ay * dt;
+    }
+
+    /**
+     * Updates the position of the craft based on velocity and time.
+     * @param {number} dt - The time step in milliseconds.
+     */
+    calculatePosition(dt) {
+        this.x += this.vx * dt / 1000;
+        this.y += this.vy * dt / 1000;
+    }
+
+    /**
+     * Updates the craft's state, including forces, acceleration, collisions, and position.
+     * @param {number} dt - The time step in milliseconds.
+     * @param {number} physicsStepsPerSecond - The number of physics steps per second.
+     */
+    update(dt, physicsStepsPerSecond = 10) {
+        const stepLength = dt / physicsStepsPerSecond;
+        for (let i = 1; i <= Math.ceil(dt * physicsStepsPerSecond); i++) {
+            this.calculateNetForce();
+            this.calculateAcceleration();
+            this.checkForCollision(stepLength);
+            this.calculatePosition(stepLength);
+        }
+        this.updateParentBody();
     }
 }

@@ -1,3 +1,5 @@
+import { getDistance } from "./utils.mjs";
+
 export class Slider {
     constructor(x, y, color = "#000", width = 10, height = 500) {
         this.radius = width/2;
@@ -12,8 +14,19 @@ export class Slider {
         this.y = y - this.height/2;
     }
 
+    setPosition(x, y) {
+        this.x = x;
+        this.y = y - this.height/2;
+    }
+
+    setHeight(height) {
+        this.y = this.y + this.height/2;
+        this.height = height;
+        this.y = this.y - this.height/2;
+    }
+
     onTouchStart(id, tx, ty) {
-        if (distance(this.x, this.y + this.height/2 - this.position, tx, ty) < this.radius * 2) {
+        if (getDistance(this.x, this.y + this.height/2 - this.position, tx, ty) < this.radius * 2) {
             this.fingerId = id;
             return true;
         } else return false;
@@ -58,8 +71,4 @@ export class Slider {
     getStrength() {
         return this.position / this.height;
     }
-}
-
-export function distance(x1, y1, x2, y2) {
-    return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
 }

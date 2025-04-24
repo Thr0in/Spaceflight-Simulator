@@ -24,7 +24,5 @@ export class Time {
         const deltaGameTime = deltaRealTime * this.warpFactor;
         this.lastTimestamp = currentRealTime;
         this.time += deltaGameTime;
-        //console.log(currentRealTime, deltaRealTime, deltaGameTime, this.time);
-
     }
 }
