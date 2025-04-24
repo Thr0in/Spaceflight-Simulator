@@ -157,18 +157,24 @@ export class Craft {
         const distanceToParent = getDistance(this.x, this.y, 0, 0);
         if (distanceToParent > this.parentBody.sphereOfInfluence) {
             const parentLocalPosition = this.parentBody.getLocalPosition();
+            const parentOrbitalVelocity = this.parentBody.getOrbitalVelocityVector();
             this.x += parentLocalPosition.x;
             this.y += parentLocalPosition.y;
+            this.vx -= parentOrbitalVelocity.vx;
+            this.vy -= parentOrbitalVelocity.vy;
             this.setParentBody(this.parentBody.getParent());
         }
         if (this.parentBody.hasChildren()) {
             for (const child of this.parentBody.getChildren()) {
                 const childLocalPosition = child.getLocalPosition();
+                const childOrbitalVelocity = child.getOrbitalVelocityVector();
                 const distanceToChild = getDistance(this.x, this.y, childLocalPosition.x, childLocalPosition.y);
 
                 if (distanceToChild < child.sphereOfInfluence) {
                     this.x -= childLocalPosition.x;
                     this.y -= childLocalPosition.y;
+                    this.vx += childOrbitalVelocity.vx;
+                    this.vy += childOrbitalVelocity.vy;
                     this.setParentBody(child);
                 }
             }
