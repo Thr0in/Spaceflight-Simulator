@@ -281,8 +281,8 @@ export class Craft {
      * @param {number} dt - The time step in milliseconds.
      * @param {number} physicsStepsPerSecond - The number of physics steps per second.
      */
-    update(dt, physicsStepsPerSecond = 10) {
-        const stepLength = dt / physicsStepsPerSecond;
+    update(dt, physicsStepsPerSecond = 20) {
+        const stepLength = 1 / physicsStepsPerSecond;
         for (let i = 1; i <= Math.ceil(dt * physicsStepsPerSecond); i++) {
             this.calculateNetForce();
             this.calculateAcceleration();
