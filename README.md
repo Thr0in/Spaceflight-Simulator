@@ -36,6 +36,7 @@ Spaceflight Simulator is an interactive web-based application that simulates a s
 6. Collision Detection: If the spacecraft collides with a celestial body, a collision message will be displayed, and the simulation will pause.
 
 ## Project Structure
+```
 Spaceflight-Simulator/
 ├── css/
 │   └── style.css                # Styles for the application
@@ -54,9 +55,10 @@ Spaceflight-Simulator/
 │   ├── statisticsScreen.mjs     # Statistics screen component
 │   ├── time.mjs                 # Time management
 │   └── utils.mjs                # Utility functions
-├── [index.html](http://_vscodecontentref_/1)                   # Main HTML file
-├── [main.mjs](http://_vscodecontentref_/2)                     # Main JavaScript file
+├── index.html                  # Main HTML file
+├── main.mjs
 └── favicon.ico                  # Favicon for the application
+```
 
 ## Development
 To modify or extend the project:
