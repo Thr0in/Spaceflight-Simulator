@@ -235,10 +235,12 @@ export class Renderer {
         const tmpCraft = Object.create(craft); // Create a temporary craft object for simulation
         let futureColision = false;
         tmpCraft.collisionCallback = () => { futureColision = true; }
-        for (let i = 0; i < 10000; i++) {
+        const startPosition = tmpCraft.getPosition();
+        for (let i = 0; i < 8000; i++) {
             tmpCraft.fireThrusters(0, 0);
-            tmpCraft.update(Math.log(i), 1); // Update craft position based on time difference
+            tmpCraft.update(i**0.5, 0.9**(i**0.5)); // Update craft position based on time difference
             let { x, y } = tmpCraft.getPosition(); // Get position of the craft
+            if (i > 100 && Math.abs(startPosition.x - x) < 500 && Math.abs(startPosition.y - y) < 500) break;
             const parentPosition = tmpCraft.getParent().getPosition();
             x += parentPosition.x;
             y += parentPosition.y;
@@ -425,7 +427,6 @@ export class Renderer {
                 }
 
                 row++;
-                console.log(key, value);
             }
         }
     }
