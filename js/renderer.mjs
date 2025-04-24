@@ -158,6 +158,7 @@ export class Renderer {
         }
 
         this.ctx.restore();
+        this.saveCraftPosition(craft);
     }
 
     /**
@@ -181,6 +182,7 @@ export class Renderer {
             const scale = 1.5 / Math.exp(this.scale);
             this.ctx.scale(scale, scale);
             this.ctx.translate(-20, -20);
+            this.ctx.translate(5, -5);
             this.ctx.drawImage(this.craftImage.img, 0, 0, 40, 40);
             this.ctx.restore();
         } catch (e) {
@@ -189,7 +191,31 @@ export class Renderer {
         }
     }
 
-    
+    /**
+     * Saves the craft's position in the history array if it has moved significantly.
+     * @param {object} craft - The craft object to save the position for.
+     */
+    saveCraftPosition(craft) {
+        const { x, y } = craft.getPosition();
+        const parent = craft.getParent();
+        if (this.craftHistory.length <= 0) {
+
+            this.craftHistory.push({ x, y, parent });
+
+        } else {
+            const lastPos = this.craftHistory[this.craftHistory.length - 1];
+
+            if (Math.abs(lastPos.x - x) > 100 || Math.abs(lastPos.y - y) > 100) {
+
+                this.craftHistory.push({ x, y, parent });
+
+            }
+
+        }
+
+
+    }
+
     drawCraftOrbit(craft) {
         this.ctx.save();
 
