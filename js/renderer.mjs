@@ -84,15 +84,27 @@ export class Renderer {
         const displayRadius = celestialBody.sphereOfInfluence / this.scaleDistance;
         this.ctx.arc(x, y, displayRadius, 0, Math.PI * 2);
 
-        const minimumSize = Math.min(this.cnvs.width, this.cnvs.height) / 3;
-        if (displayRadius < minimumSize) {
-            let alphaValue = 0.1 * (1 - (displayRadius - minimumSize / 3) / (minimumSize - minimumSize / 3));
-            alphaValue = Math.max(0, Math.min(0.1, alphaValue)); // Clamp alphaValue between 0 and 0.1
+        const alphaValue = this.calculateOpacity(displayRadius);
+        if (alphaValue > 0) {
             this.ctx.fillStyle = `rgba(255, 255, 255, ${alphaValue})`;
             this.ctx.fill();
         }
         this.ctx.stroke();
         this.ctx.restore();
+    }
+
+    /**
+     * Calculates the opacity for the sphere of influence based on its size.
+     * @param {number} displayRadius - The radius of the sphere of influence.
+     * @returns {number} The calculated opacity value.
+     */
+    calculateOpacity(displayRadius) {
+        const minimumSize = Math.min(this.cnvs.width, this.cnvs.height) / 3;
+        if (displayRadius < minimumSize) {
+            let alphaValue = 0.1 * (1 - (displayRadius - minimumSize / 3) / (minimumSize - minimumSize / 3));
+            return Math.max(0, Math.min(0.1, alphaValue)); // Clamp alphaValue between 0 and 0.1
+        }
+        return 0;
     }
 
     /**
@@ -238,7 +250,7 @@ export class Renderer {
         const startPosition = tmpCraft.getPosition();
         for (let i = 0; i < 8000; i++) {
             tmpCraft.fireThrusters(0, 0);
-            tmpCraft.update(i**0.5, 0.9**(i**0.5)); // Update craft position based on time difference
+            tmpCraft.update(i ** 0.5, 0.9 ** (i ** 0.5)); // Update craft position based on time difference
             let { x, y } = tmpCraft.getPosition(); // Get position of the craft
             if (i > 100 && Math.abs(startPosition.x - x) < 500 && Math.abs(startPosition.y - y) < 500) break;
             const parentPosition = tmpCraft.getParent().getPosition();
