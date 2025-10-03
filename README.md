@@ -14,7 +14,7 @@ Spaceflight Simulator is an interactive web-based application that simulates a s
 
 1. Clone the repository to your local machine:
    ```bash
-   git clone https://github.com/your-username/spaceflight-simulator.git
+   git clone https://github.com/thr0in/spaceflight-simulator.git
 
 2. Navigate to the project directory:
 
